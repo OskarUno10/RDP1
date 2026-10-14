@@ -1,0 +1,57 @@
+{
+  "active": true,
+  "hostname": "rdpfree-1",
+  "os": "Microsoft Windows Server 2025 Datacenter",
+  "os_build": "10.0.26100",
+  "os_style": "Native Windows",
+  "hardware": {
+    "ram_gb": 16.0,
+    "cpu_threads": 4,
+    "disk_free_gb": 31.5
+  },
+  "rdp_port": 3389,
+  "rdp_user": "xyadmin",
+  "rdp_listen": ":::3389 (svchost) | 0.0.0.0:3389 (svchost) + handshake ok via 127.0.0.1",
+  "rdp_denyts": true,
+  "started_at": "2026-10-14T20:08:32Z",
+  "expires_at": "2026-10-15T02:03:32Z",
+  "duration_menit": 355,
+  "run_id": "38629490175",
+  "run_attempt": "1",
+  "run_number": "1",
+  "run_url": "https://github.com/OskarUno10/RDP1/actions/runs/38629490175",
+  "mode": "bersih+win10",
+  "xydesk": {
+    "host": "ok",
+    "denyts": "ok",
+    "multisession": "ok",
+    "avc444": "ok",
+    "fontsmoothing": "ok (ClearType profil Default)",
+    "audio_out": "ok (policy fDisableAudio=, WinStations=)",
+    "audio_mic": "ok (policy fDisableAudioCapture=, WinStations=0) - mic HP redirect aktif, Allow di HP",
+    "wallpaper_rdp": "ok (policy fNoRemoteDesktopWallpaper=) - wallpaper RDP tampil, cek client Experience→Wallpaper ON",
+    "firewall": "tcp3389=True udp3389=True udp4433=True",
+    "services": "ok",
+    "rdp_ready": "127.0.0.1 (handshake OK)",
+    "rdp_probe": "awal=True multi=True audio=True grafis=True clear=True fw=True svc=True",
+    "quic_udp4433": "dibuka di VM (tidak lewat tunnel TCP)",
+    "akses": "(menyusul)",
+    "note": "Host siap dipakai klien XyDesk Remote mode Koneksi RDP (Host+Port tunnel). Kunci WinStations\\RDP-Tcp sengaja TIDAK ditulis supaya listener 3389 tidak mati di runner GitHub."
+  },
+  "akses": {
+    "mode": "tailscale",
+    "tailscale": {
+      "note": "HP/PC harus login Tailscale pada tailnet yang sama. TCP 3389 harus diizinkan ACL.",
+      "hostname": "rdpfree-1",
+      "status": "ok",
+      "magicdns": "rdpfree-1.tail354628.ts.net.",
+      "ip": "100.87.204.26"
+    }
+  },
+  "media": {
+    "verification": "Login ulang, aktifkan mic di XyDesk dan izinkan Android. Uji Windows Settings > Sound > Input; kebijakan aktif bukan bukti capture end-to-end.",
+    "wallpaper": "xyverse_configured_for_user_logon",
+    "microphone": "rdp_capture_enabled",
+    "audio_output": "rdp_playback_enabled"
+  }
+}
