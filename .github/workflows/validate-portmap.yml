@@ -1,0 +1,30 @@
+name: Validate private Portmap configuration
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  tunnel:
+    runs-on: windows-2022
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - name: Parse scripts
+        shell: pwsh
+        run: |
+          foreach($file in @('setup-portmap','finalize-rdp','keepalive','publish-status')) {
+            $t=$null;$e=$null
+            [System.Management.Automation.Language.Parser]::ParseFile("$pwd/scripts/$file.ps1",[ref]$t,[ref]$e) | Out-Null
+            if($e.Count){throw ($e | Out-String)}
+          }
+      - name: Validate OpenVPN handshake only (no public RDP)
+        shell: pwsh
+        env:
+          PORTMAP_OVPN_CONFIG: ${{ secrets.PORTMAP_OVPN_CONFIG }}
+          PORTMAP_HOST: ${{ vars.PORTMAP_HOST }}
+          PORTMAP_PORT: ${{ vars.PORTMAP_PORT }}
+        run: ./scripts/setup-portmap.ps1 -ValidateOnly
+      - name: Remove private configuration and disconnect
+        if: always()
+        shell: pwsh
+        run: ./scripts/finalize-rdp.ps1

@@ -1,0 +1,50 @@
+name: Validate desktop maintenance
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  desktop:
+    runs-on: windows-2022
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - name: Parse scripts and verify retired transparency setting
+        shell: pwsh
+        run: |
+          foreach ($name in @('lib-common','setup-extras','setup-grafis','setup-explorer')) {
+            $errors=$null; $tokens=$null
+            [System.Management.Automation.Language.Parser]::ParseFile("$pwd/scripts/$name.ps1",[ref]$tokens,[ref]$errors) | Out-Null
+            if ($errors.Count) { throw ($errors | Out-String) }
+          }
+          . ./scripts/lib-common.ps1
+          if ((Get-Cfg).translucent) { throw 'TranslucentTB must be disabled' }
+      - name: Verify Explorer preferences and repeated application
+        shell: pwsh
+        run: |
+          ./scripts/setup-explorer.ps1
+          ./scripts/setup-explorer.ps1 -CurrentUserOnly
+          $a=Get-ItemProperty 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced'
+          if ($a.Hidden -ne 1 -or $a.HideFileExt -ne 0 -or $a.AutoCheckSelect -ne 1 -or $a.ShowSuperHidden -ne 0) { throw 'Explorer preferences mismatch' }
+          $t=Get-ItemProperty 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize'
+          if ($t.AppsUseLightTheme -ne 0 -or $t.SystemUsesLightTheme -ne 0) { throw 'Dark theme mismatch' }
+      - name: Test vendor Lightshot installation without RDP session
+        shell: pwsh
+        run: |
+          . ./scripts/lib-common.ps1
+          $errors=$null; $tokens=$null
+          $ast=[System.Management.Automation.Language.Parser]::ParseFile("$pwd/scripts/setup-extras.ps1",[ref]$tokens,[ref]$errors)
+          $functions=$ast.FindAll({param($n) $n -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $n.Name -in @('Find-Lightshot','Install-LightshotDirect')},$true)
+          foreach ($fn in $functions) { . ([scriptblock]::Create($fn.Extent.Text)) }
+          if (-not (Install-LightshotDirect)) { throw 'Lightshot vendor install failed' }
+          $exe=Find-Lightshot
+          if (-not $exe) { throw 'Lightshot executable missing' }
+          Write-Host "Verified installed executable: $exe"
+          if (-not (Install-LightshotDirect)) { throw 'Repeat installation failed' }
+      - name: Upload installer diagnostic log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lightshot-install-diagnostic
+          path: ${{ runner.temp }}/lightshot-install.log
+          if-no-files-found: ignore

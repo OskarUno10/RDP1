@@ -1,0 +1,46 @@
+name: Validate desktop diagnostics and cleanup safeguards
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  checks:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-2022, windows-2025]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+      - name: Parse scripts without running setup or deleting files
+        shell: pwsh
+        run: |
+          foreach($file in @('diagnose-desktop','keepalive','setup-media','optimize-storage','lib-common')) {
+            $tokens=$null; $errors=$null
+            [System.Management.Automation.Language.Parser]::ParseFile("$pwd/scripts/$file.ps1",[ref]$tokens,[ref]$errors) | Out-Null
+            if($errors.Count){throw ($errors | Out-String)}
+          }
+      - name: Verify protected paths with deletion mocked
+        shell: pwsh
+        run: |
+          $tokens=$null; $errors=$null
+          $ast=[System.Management.Automation.Language.Parser]::ParseFile("$pwd/scripts/optimize-storage.ps1",[ref]$tokens,[ref]$errors)
+          $fn=$ast.Find({param($n) $n -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $n.Name -eq 'Remove-Tree'},$true)
+          Invoke-Expression $fn.Extent.Text
+          function Log($m){Write-Host $m}
+          $script:deletions=0
+          function Remove-Item {$script:deletions++;throw 'Deletion disabled in validation'}
+          foreach($path in @("$env:SystemRoot", "$env:SystemRoot\System32", "$env:SystemRoot\WinSxS", "$env:SystemRoot\Installer", "$env:SystemRoot\Temp", "$env:ProgramFiles\Tailscale", 'C:\ProgramData\RdpFree')) {
+            if((Remove-Tree $path 'protected test') -ne 0){throw 'Protected target was not rejected'}
+          }
+          if($script:deletions){throw 'Deletion was attempted on protected path'}
+      - name: Run read-only desktop diagnostics
+        shell: pwsh
+        run: |
+          ./scripts/diagnose-desktop.ps1
+          $report=Get-ChildItem 'C:\ProgramData\RdpFree\Diagnostics\desktop-*.json' | Select-Object -Last 1
+          if(-not $report){throw 'Report missing'}
+          $data=Get-Content $report -Raw | ConvertFrom-Json
+          if(-not $data.os -or $data.runtimes.Count -lt 12){throw 'Report incomplete'}
+          Write-Host 'Local report structure verified; no file uploaded and no desktop restart.'

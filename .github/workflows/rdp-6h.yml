@@ -1,0 +1,302 @@
+# rdpfree-workflow-schema: 5
+name: RdpFree — RDP 6 Jam
+'on':
+  workflow_dispatch:
+    inputs:
+      durasi_menit:
+        description: Durasi sesi (menit). 6 jam pas = 360
+        required: false
+        default: '360'
+        type: choice
+        options:
+        - '15'
+        - '30'
+        - '60'
+        - '120'
+        - '180'
+        - '240'
+        - '300'
+        - '330'
+        - '360'
+      hostname:
+        description: 'Hostname sesi (dapat suffix nomor run, mis: xyrdp-42)'
+        required: false
+        default: rdpfree
+        type: string
+      rdp_user:
+        description: Username login RDP (3–20 karakter, huruf/angka/_/-)
+        required: false
+        default: xyadmin
+        type: string
+      akses:
+        description: Tailscale privat atau endpoint publik Portmap
+        required: false
+        default: tailscale
+        type: choice
+        options:
+        - tailscale
+        - portmap
+      storage_boost:
+        description: ' Storage Boost: bebaskan 45-75GB (70GB -> 120GB+ free) dengan hapus Android/Haskell/CodeQL/cache'
+        required: false
+        default: tidak
+        type: choice
+        options:
+        - ya
+        - tidak
+      debloat:
+        description: ' Debloat: hapus app bawaan gede (ringan=OneDrive/Xbox/Appx, full=+Edge ~1.5GB). Edge dihapus
+          hanya jika Chrome ada'
+        required: false
+        default: ringan
+        type: choice
+        options:
+        - ringan
+        - full
+        - tidak
+      samp:
+        description: 'Dependensi saja: DirectX legacy x86/x64, Visual C++, DirectPlay/.NET bila tersedia. Game/client
+          dipasang manual.'
+        required: false
+        default: ya
+        type: choice
+        options:
+        - ya
+        - tidak
+      win10:
+        description: Tweak tampilan Windows 10 (Server Manager mati, personalisasi, wallpaper, label)
+        required: false
+        default: tidak
+        type: choice
+        options:
+        - ya
+        - tidak
+      xydesk:
+        description: Host setup XyDesk Remote (AVC444 + ClearType + multi-session + audio/mic + UDP 4433)
+        required: false
+        default: ya
+        type: choice
+        options:
+        - ya
+        - tidak
+      ekstra:
+        description: 'Ekstra otomatis: Lightshot + wallpaper + taskbar translucent'
+        required: false
+        default: tidak
+        type: choice
+        options:
+        - ya
+        - tidak
+      grafis:
+        description: 'Toolkit Mesa CPU opsional; bukan GPU fisik atau jaminan FPS/game. Tidak mengganti DLL Windows.'
+        required: false
+        default: tidak
+        type: choice
+        options:
+        - software
+        - tidak
+      runner:
+        description: Image Windows x64 GitHub-hosted (bukan Windows desktop 7/10/11)
+        required: false
+        default: windows-2022
+        type: choice
+        options:
+        - windows-2022
+        - windows-2025
+        - windows-latest
+      microphone:
+        description: Izinkan input mikrofon melalui kanal RDP (klien tetap meminta izin Android)
+        required: false
+        default: ya
+        type: choice
+        options:
+        - ya
+        - tidak
+      roblox:
+        description: Periksa kompatibilitas Roblox; tidak melewati pembatasan VM atau Windows Server
+        required: false
+        default: tidak
+        type: choice
+        options:
+        - ya
+        - tidak
+      minecraft_java:
+        description: Siapkan launcher resmi; GPU/OpenGL dan akun berlisensi tetap diperlukan
+        required: false
+        default: tidak
+        type: choice
+        options:
+        - ya
+        - tidak
+      minecraft_bedrock:
+        description: Periksa dukungan Store/Xbox; Windows Server tidak didukung
+        required: false
+        default: tidak
+        type: choice
+        options:
+        - ya
+        - tidak
+      portmap_host:
+        description: Hostname publik mapping Portmap, tanpa tcp://
+        required: false
+        default: ''
+        type: string
+      portmap_port:
+        description: Port publik mapping Portmap (bukan port Windows)
+        required: false
+        default: ''
+        type: string
+permissions:
+  contents: write
+  actions: read
+concurrency:
+  group: xyrdp
+  cancel-in-progress: false
+jobs:
+  rdp:
+    runs-on: ${{ inputs.runner || 'windows-2022' }}
+    timeout-minutes: 360
+    env:
+      DUR: ${{ inputs.durasi_menit }}
+      HOSTNAME: ${{ inputs.hostname }}
+      AKSES: ${{ inputs.akses }}
+      WIN10: ${{ inputs.win10 }}
+      XYDESK: ${{ inputs.xydesk }}
+      EXTRAS: ${{ inputs.ekstra }}
+      GRAFIS: ${{ inputs.grafis }}
+      WALLPAPER_URL: ''
+      RDP_USER: ${{ inputs.rdp_user || 'xyadmin' }}
+      RDP_PASSWORD: ${{ secrets.RDP_PASSWORD }}
+      TAILSCALE_AUTH_KEY: ${{ secrets.TAILSCALE_AUTH_KEY }}
+      CLEANUP_TOKEN: ${{ secrets.CLEANUP_TOKEN }}
+      KEEP_RUNS: '3'
+      GITHUB_TOKEN: ${{ github.token }}
+      STORAGE_BOOST: ${{ inputs.storage_boost }}
+      DEBLOAT: ${{ inputs.debloat }}
+      SAMP: ${{ inputs.samp }}
+      RDPFREE_RUNNER: ${{ inputs.runner }}
+      MICROPHONE: ${{ inputs.microphone }}
+      ROBLOX: ${{ inputs.roblox }}
+      MINECRAFT_JAVA: ${{ inputs.minecraft_java }}
+      MINECRAFT_BEDROCK: ${{ inputs.minecraft_bedrock }}
+      PORTMAP_HOST: ${{ inputs.portmap_host || vars.PORTMAP_HOST }}
+      PORTMAP_PORT: ${{ inputs.portmap_port || vars.PORTMAP_PORT }}
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v5
+    - name: Info lingkungan (OS + versi + disk awal)
+      timeout-minutes: 5
+      shell: pwsh
+      run: '$os = Get-CimInstance Win32_OperatingSystem
+
+        Write-Host "[RdpFree] OS runner : $($os.Caption) build $($os.Version)"
+
+        Write-Host "[RdpFree] Storage awal:"
+
+        Get-CimInstance Win32_LogicalDisk | ForEach-Object { Write-Host "  $($_.DeviceID) $([math]::Round($_.Size/1GB,1))GB
+        total / $([math]::Round($_.FreeSpace/1GB,1))GB free" }
+
+        Write-Host "[RdpFree] Catatan: storage_boost=$env:STORAGE_BOOST samp=$env:SAMP samp_extra=$env:SAMP_EXTRA"
+
+        '
+    - name: Setup dasar (user admin + RDP 3389)
+      timeout-minutes: 15
+      shell: pwsh
+      run: ./scripts/setup-rdp.ps1
+    - name: Host setup XyDesk Remote (AVC444 + ClearType + audio/mic + UDP 4433)
+      if: ${{ inputs.xydesk != 'tidak' }}
+      timeout-minutes: 10
+      shell: pwsh
+      run: ./scripts/setup-xydesk.ps1
+    - name: Setup akses privat Tailscale
+      timeout-minutes: 15
+      shell: pwsh
+      run: ./scripts/setup-akses.ps1
+      if: ${{ inputs.akses != 'portmap' }}
+    - name: Setup akses publik Portmap (OpenVPN)
+      if: ${{ inputs.akses == 'portmap' }}
+      timeout-minutes: 8
+      shell: pwsh
+      env:
+        PORTMAP_OVPN_CONFIG: ${{ secrets.PORTMAP_OVPN_CONFIG }}
+      run: ./scripts/setup-portmap.ps1
+    - name: Wallpaper dan mikrofon sesi pengguna
+      shell: pwsh
+      timeout-minutes: 5
+      run: ./scripts/setup-media.ps1
+    - name: Publish koneksi lebih awal
+      timeout-minutes: 10
+      shell: pwsh
+      run: ./scripts/publish-status.ps1 -Active $true
+    - name: Storage boost opsional (kapasitas aktual bergantung runner)
+      if: ${{ inputs.storage_boost != 'tidak' }}
+      timeout-minutes: 15
+      continue-on-error: true
+      shell: pwsh
+      run: ./scripts/optimize-storage.ps1
+    - name: Tweak tampilan Windows 10 (Server Manager, personalisasi, wallpaper)
+      if: ${{ inputs.win10 != 'tidak' }}
+      timeout-minutes: 15
+      shell: pwsh
+      run: ./scripts/setup-win10.ps1
+    - name: Toolkit grafis opsional (Mesa CPU, tanpa mengganti DLL Windows)
+      if: ${{ inputs.grafis != 'tidak' }}
+      timeout-minutes: 12
+      continue-on-error: true
+      shell: pwsh
+      run: ./scripts/setup-grafis.ps1
+    - name: Setup tampilan, wallpaper, dan editor coding opsional
+      if: ${{ inputs.ekstra != 'tidak' }}
+      timeout-minutes: 20
+      continue-on-error: true
+      shell: pwsh
+      run: ./scripts/setup-extras.ps1
+    - name: Verifikasi dependensi legacy x86/x64 (tanpa instalasi game)
+      if: ${{ inputs.samp == 'ya' }}
+      timeout-minutes: 15
+      continue-on-error: true
+      shell: pwsh
+      run: ./scripts/setup-samp.ps1
+    - name: Persiapan game dan laporan kompatibilitas
+      shell: pwsh
+      timeout-minutes: 20
+      run: ./scripts/setup-games.ps1
+    - name: Install WinRAR, current VC++ runtimes, XAMPP and TCP-UDP 7777 rules
+      shell: pwsh
+      timeout-minutes: 25
+      run: ./scripts/setup-host-tools.ps1
+    - name: Explorer — hidden files, extensions, checkboxes, dark theme
+      shell: pwsh
+      timeout-minutes: 2
+      run: ./scripts/setup-explorer.ps1
+    - name: KONEKSI SIAP — IP, username dan panduan password
+      shell: pwsh
+      run: '$st = Get-Content out/rdp-status.json -Raw | ConvertFrom-Json
+
+        if ($st.akses.mode -eq ''portmap'') { Write-Host "Portmap: $($st.akses.portmap.host):$($st.akses.portmap.port)"
+        } else { Write-Host "Tailscale: $($st.akses.tailscale.ip):3389" }
+
+        Write-Host "Username: $env:RDP_USER"
+
+        Write-Host ''Password hanya di dashboard terlindungi / password manager, bukan log publik.''
+
+        '
+    - name: Publish status ke branch 'status'
+      timeout-minutes: 10
+      shell: pwsh
+      run: ./scripts/publish-status.ps1 -Active $true
+    - name: SUDAH ONLINE — sesi aktif
+      shell: pwsh
+      run: ./scripts/keepalive.ps1
+    - name: Finalize (matikan akses, bersihkan status, hapus run lama)
+      if: always()
+      continue-on-error: true
+      timeout-minutes: 15
+      shell: pwsh
+      run: './scripts/publish-status.ps1 -Active $false
+
+        ./scripts/finalize-rdp.ps1
+
+        ./scripts/cleanup-actions.ps1
+
+        '

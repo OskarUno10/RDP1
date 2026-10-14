@@ -1,0 +1,29 @@
+name: Validate Windows dependencies
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  dependencies:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-2022, windows-2025]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - name: Parse PowerShell changes
+        shell: pwsh
+        run: |
+          foreach ($file in @('setup-samp','setup-games','setup-rdp')) {
+            $errors=$null; $tokens=$null
+            [System.Management.Automation.Language.Parser]::ParseFile("$pwd/scripts/$file.ps1",[ref]$tokens,[ref]$errors) | Out-Null
+            if ($errors.Count) { throw ($errors | Out-String) }
+          }
+      - name: Install and verify dependencies without game or RDP session
+        shell: pwsh
+        run: ./scripts/setup-samp.ps1
+      - name: Verify repeated DirectX install is idempotent
+        shell: pwsh
+        run: ./scripts/setup-samp.ps1 -DirectXOnly

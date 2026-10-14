@@ -1,0 +1,14 @@
+import {test} from 'node:test';import assert from 'node:assert/strict';import {NextRequest} from 'next/server';import {encode} from 'next-auth/jwt';import {stringify} from 'yaml';
+import {POST} from '../src/app/api/v1/runs/route';import {defaults,choices} from '../src/lib/workflow';
+test('web dispatch uses saved supported image, real workflow contract and secrets; rejects duplicates and unsafe origins',async()=>{
+ process.env.NEXTAUTH_SECRET='dispatch-test-only';process.env.NEXTAUTH_URL='https://rdpfree.projectkal.my.id';process.env.ADMIN_CREDENTIAL_VERSION='test';process.env.ADMIN_GITHUB_TOKEN='synthetic-token';process.env.ADMIN_REPO='owner/session';
+ const saved={...defaults,runner:'windows-2025',durasi_menit:'15'};let running=false,sent=0;
+ (globalThis as unknown as Record<symbol,unknown>)[Symbol.for('__cloudflare-context__')]={env:{DB:{prepare(sql:string){return {bind(){return this},async first(){if(sql.includes('rate_limits'))return {count:1};if(sql.startsWith('INSERT INTO locks'))return {key:'run'};if(sql.includes('FROM settings'))return {inputs:JSON.stringify(saved)};return null;}}}}}};
+ const inputs=Object.fromEntries(Object.keys(defaults).map(k=>[k,choices[k]?{type:'choice',options:choices[k]}:{type:'string'}]));const source='# rdpfree-workflow-schema: 5\n'+stringify({on:{workflow_dispatch:{inputs}}});const original=fetch;
+ globalThis.fetch=async(input,init)=>{const u=String(input);if(u.includes('/dispatches')){assert.equal(init?.method,'POST');assert.deepEqual(JSON.parse(String(init?.body)),{ref:'main',inputs:saved});sent++;return new Response(null,{status:204})}if(u.includes('/contents/'))return Response.json({content:Buffer.from(source).toString('base64')});if(u.includes('/runs?'))return Response.json({workflow_runs:running?[{status:'in_progress'}]:[]});if(u.includes('/actions/secrets'))return Response.json({secrets:[{name:'RDP_PASSWORD'},{name:'TAILSCALE_AUTH_KEY'}]});if(u.endsWith('/actions/permissions'))return Response.json({enabled:true});if(u.endsWith('/rdp-6h.yml'))return Response.json({state:'active'});if(u.endsWith('/user'))return Response.json({login:'owner'});return Response.json({default_branch:'main',permissions:{push:true}})};
+ try{const token=await encode({secret:process.env.NEXTAUTH_SECRET,token:{authKind:'admin',credVersion:'test'},maxAge:300});const req=(origin='https://rdpfree.projectkal.my.id')=>new NextRequest('https://rdpfree.projectkal.my.id/api/v1/runs',{method:'POST',headers:{origin,cookie:'__Secure-next-auth.session-token='+token,'Content-Type':'application/json'},body:'{"confirm":true}'});
+ assert.equal((await POST(req('https://evil.example'))).status,403);assert.equal(sent,0);
+ const response=await POST(req());assert.equal(response.status,202,JSON.stringify(await response.json()));assert.equal(sent,1);
+ running=true;assert.equal((await POST(req())).status,409);assert.equal(sent,1);
+ }finally{globalThis.fetch=original}
+});

@@ -1,0 +1,1 @@
+export function portmapEndpointReady(inputs:Partial<Record<string,string>>){return /^(?=.{1,253}$)(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,63}$/.test(inputs.portmap_host||'')&&/^\d{1,5}$/.test(inputs.portmap_port||'')&&Number(inputs.portmap_port)>0&&Number(inputs.portmap_port)<=65535;}

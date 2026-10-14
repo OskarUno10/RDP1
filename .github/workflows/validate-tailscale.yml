@@ -1,0 +1,32 @@
+name: Validate Tailscale installer
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  installer:
+    runs-on: windows-2022
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - name: Parse changed PowerShell scripts
+        shell: pwsh
+        run: |
+          foreach ($file in @('setup-akses','optimize-storage','setup-rdp','publish-status')) {
+            $errors=$null; $tokens=$null
+            [System.Management.Automation.Language.Parser]::ParseFile("$pwd/scripts/$file.ps1",[ref]$tokens,[ref]$errors) | Out-Null
+            if ($errors.Count) { throw ($errors | Out-String) }
+          }
+      - name: Simulate missing Windows temp directory after old storage cleanup
+        shell: pwsh
+        run: |
+          # Disposable CI runner only; no RDP, credentials, or tailnet registration.
+          Remove-Item "$env:SystemRoot\Temp" -Recurse -Force -ErrorAction SilentlyContinue
+      - name: Install and verify signed Tailscale package
+        shell: pwsh
+        run: ./scripts/setup-akses.ps1 -InstallOnly
+      - name: Verify idempotent installation and service
+        shell: pwsh
+        run: |
+          ./scripts/setup-akses.ps1 -InstallOnly
+          if ((Get-Service Tailscale).Status -ne 'Running') { throw 'Tailscale service is not running' }

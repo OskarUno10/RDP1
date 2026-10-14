@@ -1,0 +1,30 @@
+name: Validate host development tools
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  tools:
+    runs-on: windows-2022
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+      - name: Parse installer script
+        shell: pwsh
+        run: |
+          $errors=$null;$tokens=$null
+          [System.Management.Automation.Language.Parser]::ParseFile("$pwd/scripts/setup-host-tools.ps1",[ref]$tokens,[ref]$errors) | Out-Null
+          if ($errors.Count) { throw ($errors | Out-String) }
+      - name: Install and verify real executables and firewall rules
+        shell: pwsh
+        run: ./scripts/setup-host-tools.ps1
+      - name: Verify repeated setup
+        shell: pwsh
+        run: ./scripts/setup-host-tools.ps1
+      - name: Upload non-secret install report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: host-tools-verification
+          path: C:\ProgramData\RdpFree\host-tools\report.json
+          if-no-files-found: ignore

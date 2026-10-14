@@ -1,0 +1,4 @@
+import {test} from 'node:test';import assert from 'node:assert/strict';import {existsSync,statSync} from 'node:fs';import path from 'node:path';
+import {recordedGuideKeys,recordedVoicePath} from '../src/app/dashboard/recorded-voice';
+test('all nine Indonesian guide recordings are mapped to local assets only',()=>{assert.equal(recordedGuideKeys.length,9);for(const key of recordedGuideKeys){const url=recordedVoicePath(key)!;assert(url.startsWith('/audio/id/'));const f=path.join(process.cwd(),'public',url);assert(existsSync(f),f);assert(statSync(f).size>10000)}assert.equal(recordedVoicePath('../../private'),null);assert.equal(recordedVoicePath('https://example.com'),null)});
+test('optimized floating artwork stays below 100 KB combined',()=>{assert(statSync('public/decor/orbit.webp').size+statSync('public/decor/cloud.webp').size<100000)});
